@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Map {
+  uid                String               @id
+  tmx_id             BigInt
+  name               String?
+  tmx_author_id      BigInt[]
+  author_time        BigInt?
+  author_login       String?
+  ProjectMap         ProjectMap[]
+  Record             Record[]
+  WorldRecordHistory WorldRecordHistory[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model MatchedIdentity {
+  provider       IdentityProvider
+  external_id    String
+  profile_id     String           @db.Uuid
+  Profile        Profile          @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  PlayerIdentity PlayerIdentity   @relation(fields: [provider, external_id], references: [provider, external_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_matchedidentity_player_identity")
+
+  @@id([provider, external_id, profile_id])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model PlayerIdentity {
+  provider        IdentityProvider
+  external_id     String
+  username        String?
+  flagged         Boolean           @default(false)
+  MatchedIdentity MatchedIdentity[]
+  Record          Record[]
+
+  @@id([external_id, provider])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Profile {
+  id              String            @id(map: "Player_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  display_name    String
+  role            Role?
+  merged_into_id  String?           @db.Uuid
+  created_at      DateTime          @default(dbgenerated("(now() AT TIME ZONE 'utc'::text)")) @db.Timestamptz(6)
+  MatchedIdentity MatchedIdentity[]
+  Profile         Profile?          @relation("ProfileToProfile", fields: [merged_into_id], references: [id], onUpdate: NoAction)
+  other_Profile   Profile[]         @relation("ProfileToProfile")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Project {
+  uid         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String?
+  slug        String        @unique
+  description String?
+  started_at  DateTime?     @db.Timestamptz(6)
+  is_active   Boolean?      @default(true)
+  status      ProjectStatus @default(ACTIVE)
+  map_count   BigInt        @default(0)
+  ProjectMap  ProjectMap[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model ProjectMap {
+  map_uid      String
+  project_slug String
+  Map          Map     @relation(fields: [map_uid], references: [uid], onDelete: NoAction, onUpdate: NoAction)
+  Project      Project @relation(fields: [project_slug], references: [slug], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([map_uid, project_slug])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model Record {
+  time               BigInt
+  driven_on          DateTime?        @db.Timestamptz(6)
+  map_uid            String
+  player_identity_id String
+  leaderboard        IdentityProvider
+  Map                Map              @relation(fields: [map_uid], references: [uid], onDelete: NoAction, onUpdate: NoAction)
+  PlayerIdentity     PlayerIdentity   @relation(fields: [leaderboard, player_identity_id], references: [provider, external_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_record_player_identity")
+
+  @@id([player_identity_id, map_uid, leaderboard])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model WorldRecordHistory {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  map_uid            String
+  player_identity_id String
+  leaderboard        IdentityProvider
+  time               BigInt
+  driven_on          DateTime         @db.Timestamptz(6)
+  created_at         DateTime?        @default(now()) @db.Timestamptz(6)
+  Map                Map              @relation(fields: [map_uid], references: [uid], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([leaderboard, player_identity_id], map: "idx_wr_history_identity")
+  @@index([map_uid], map: "idx_wr_history_map")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum IdentityProvider {
+  TMX
+  DEDIMANIA
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum Role {
+  GUEST
+  MEMBER
+  ADMIN
+}
