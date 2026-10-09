@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import Link from 'next/link'
 
 export default async function ProjectsPage() {
     const projects = await prisma.project.findMany({
@@ -14,14 +15,20 @@ export default async function ProjectsPage() {
     })
     return (
         <div>
-            {projects.map((project) => (
-                <div>
-                    <h1>{project.name}</h1>
-                    <h2>{project.slug}</h2>
-                    <p>{project.description}</p>
-                    <p>{project.map_count}</p>
-                </div>
-            ))}
+            <ul>
+                {projects.map((project) => (
+                    <li key={project.slug}>
+                        <Link href={`/projects/${project.slug}`}>
+                            <div>
+                                <h1>{project.name}</h1>
+                                <h2>{project.slug}</h2>
+                                <p>{project.description}</p>
+                                <p>{project.map_count}</p>
+                            </div>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
         </div>
     )
 }
